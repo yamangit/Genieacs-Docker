@@ -1,0 +1,48 @@
+# Use the official Node.js Alpine image
+FROM node:20-alpine
+
+# Update packages and install supervisor
+RUN apk update && apk add --no-cache supervisor
+
+# Switch to the root user to perform system-level tasks
+USER root
+
+# Create Supervisor log directory
+RUN mkdir -p /var/log/supervisor
+
+# Install GenieACS globally using npm
+RUN npm install -g --unsafe-perm genieacs@1.2.9
+
+# Create the genieacs group
+RUN addgroup -S genieacs
+
+# Create the genieacs user and add to the group
+RUN adduser -S -G genieacs genieacs
+
+# Create directories and set ownership permissions
+RUN mkdir -p /opt/genieacs/ext && chown -R genieacs:genieacs /opt/genieacs
+RUN mkdir -p /var/log/genieacs && chown -R genieacs:genieacs /var/log/genieacs
+
+# Copy logrotate configuration for GenieACS
+COPY logrotate-genieacs /etc/logrotate.d/genieacs
+# Copy the genieacs.env file
+COPY genieacs.env /opt/genieacs/genieacs.env
+
+# Generate JWT token
+RUN node -e "console.log(\"GENIEACS_UI_JWT_SECRET=\" + require('crypto').randomBytes(128).toString('hex'))" >> /opt/genieacs/genieacs.env
+
+# Set ownership permissions for genieacs.env
+RUN chmod 600 /opt/genieacs/genieacs.env
+RUN chown genieacs:genieacs /opt/genieacs/genieacs.env
+
+# Copy the script to run GenieACS as services
+COPY run_with_env_alpine.sh /opt/genieacs/run_with_env_alpine.sh
+RUN chmod +x /opt/genieacs/run_with_env_alpine.sh && chown genieacs:genieacs /opt/genieacs/run_with_env_alpine.sh
+COPY supervisord_alpine.conf /opt/genieacs/supervisord_alpine.conf
+RUN chown genieacs:genieacs /opt/genieacs/supervisord_alpine.conf
+
+# Set working directory for supervisord
+WORKDIR /var/log/genieacs
+
+# Start supervisord with the specified configuration
+CMD ["/usr/bin/supervisord", "-c", "/opt/genieacs/supervisord_alpine.conf"]

@@ -1,0 +1,44 @@
+version: "3"
+services:
+  mongodb:
+    build:
+      context: .
+      dockerfile: Dockerfile.mongodb
+    restart: always
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - genieacs-network
+
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+
+  genieacs:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpine.genieacs
+    container_name: genieacs
+    ports:
+      - "7547:7547"
+      - "7567:7567"
+      - "7557:7557"
+      - "3000:3000"
+    networks:
+      - genieacs-network
+
+    volumes:
+      - genieacs-data:/opt/genieacs
+      - genieacs-log:/var/log/genieacs
+    depends_on:
+      - mongodb
+
+networks:
+  genieacs-network:
+
+volumes:
+  mongodb-data:
+  mongodb-config:
+  genieacs-data:
+  genieacs-log:

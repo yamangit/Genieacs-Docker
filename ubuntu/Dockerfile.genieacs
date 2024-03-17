@@ -1,0 +1,54 @@
+# GenieACS v1.2 Dockerfile #
+############################
+# node image
+FROM ubuntu:jammy
+
+# Update packages
+
+RUN apt-get update && apt-get install -y supervisor curl
+RUN curl -sL https://deb.nodesource.com/setup_20.x -o /tmp/nodesource_setup.sh
+RUN bash /tmp/nodesource_setup.sh
+RUN apt-get install -y nodejs
+
+
+# Create Supervisor log
+RUN mkdir -p /var/log/supervisor
+
+# Install genieacs using npm
+RUN npm install -g --unsafe-perm genieacs@1.2.9
+
+# Creating the genieacs user
+RUN useradd --system --no-create-home --user-group genieacs
+
+# Creating and Ownership permission
+RUN mkdir /opt/genieacs
+RUN mkdir /opt/genieacs/ext
+RUN chown genieacs:genieacs /opt/genieacs/ext
+
+# Creating the log file for genieacs and Ownership permission
+RUN mkdir /var/log/genieacs
+RUN chown genieacs:genieacs /var/log/genieacs
+
+# Copying the genieacs logrorate config
+ADD logrotate-genieacs /etc/logrotate.d/genieacs
+
+# Copying the genieacs.env  file 
+ADD genieacs.env /opt/genieacs/genieacs.env
+
+
+# Creating JWT token
+RUN node -e "console.log(\"GENIEACS_UI_JWT_SECRET=\" + require('crypto').randomBytes(128).toString('hex'))" >> /opt/genieacs/genieacs.env
+
+# Create Ownership permission
+RUN chown genieacs:genieacs /opt/genieacs/genieacs.env
+RUN  chmod 600 /opt/genieacs/genieacs.env
+
+# Creating the script to run as services
+WORKDIR /opt
+ADD run_with_env.sh genieacs/run_with_env.sh
+RUN chmod +x genieacs/run_with_env.sh
+ADD supervisord.conf /opt/genieacs/supervisord.conf
+
+# Running the entrypoint
+WORKDIR /var/log/genieacs
+CMD ["/usr/bin/supervisord","-c","/opt/genieacs/supervisord.conf"]
